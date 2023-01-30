@@ -94,7 +94,6 @@ app.layout = html.Div([
         html.H2("Beta:", style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : "20px"}),
         html.H2(id='beta', style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : '13px'})
     ]),
-
     dcc.Graph(id="ab-plot"),
     html.P(id='summary-text', children="")],
     style={'background-color' : 'PowderBlue'})
@@ -177,6 +176,12 @@ def query_refinitiv(n_clicks, benchmark_id, asset_id, start_date_id, end_date_id
     divs['Date'] = pd.to_datetime(divs['Date']).dt.date
     divs = divs[(divs.Date.notnull()) & (divs.div_amt > 0)]
 
+    divs = divs.groupby(['Instrument', 'Date'], as_index=False).agg({
+        'div_amt': 'sum',
+        'div_type': lambda x: ", ".join(x),
+        'pay_type': lambda x: ", ".join(x)
+    })
+
     splits.rename(
         columns={
             'Capital Change Effective Date': 'Date',
@@ -200,6 +205,7 @@ def query_refinitiv(n_clicks, benchmark_id, asset_id, start_date_id, end_date_id
         on=['Date', 'Instrument']
     )
     unadjusted_price_history['split_rto'].fillna(1, inplace=True)
+    unadjusted_price_history.drop_duplicates(inplace=True)
 
     if unadjusted_price_history.isnull().values.any():
         raise Exception('missing values detected!')
@@ -245,15 +251,31 @@ def calculate_returns(history_tbl):
 @app.callback(
     Output("ab-plot", "figure"),
     [Input("returns-tbl", "data"), Input('plot-date-id', 'start_date'), Input('plot-date-id', 'end_date')],
-    [State('benchmark-id', 'value'), State('asset-id', 'value'), State('date-id', 'start_date'), State('date-id', 'end_date')],
+    [State('benchmark-id', 'value'), State('history-tbl', 'data'), State('asset-id', 'value'), State('date-id', 'start_date'), State('date-id', 'end_date')],
     prevent_initial_call = True
 )
-def render_ab_plot(returns, plot_start, plot_end, benchmark_id, asset_id, start_date, end_date):
+def render_ab_plot(returns, plot_start, plot_end, benchmark_id, history, asset_id, start_date, end_date):
 
-    start_ind = int(plot_start[0:4] + plot_start[5:7] + plot_start[8:10]) - int(start_date[0:4] + start_date[5:7] + start_date[8:10])
-    end_ind = int(plot_end[0:4] + plot_end[5:7] + plot_end[8:10]) - int(end_date[0:4] + end_date[5:7] + end_date[8:10])
+    dates = [i['Date'] for i in history]
+    print(dates.index(plot_start))
 
-    plotrets = returns[start_ind:len(returns)-end_ind-1]
+    try:
+        end_ind = dates.index(plot_end)
+    except:
+        try:
+            end_ind = dates.index(plot_end[0:-1] + str(int(plot_end[-1]) - 1))
+        except:
+            end_ind = dates.index(plot_end[0:-1] + str(int(plot_end[-1]) - 2))
+
+    try:
+        start_ind = dates.index(plot_start)
+    except:
+        try:
+            start_ind = dates.index(plot_start[0:-1] + str(int(plot_start[-1]) + 1))
+        except:
+            start_ind = dates.index(plot_start[0:-1] + str(int(plot_start[-1]) + 2))
+
+    plotrets = returns[start_ind:end_ind+1]
     return(
         px.scatter(plotrets, x=benchmark_id, y=asset_id, trendline='ols')
     )
