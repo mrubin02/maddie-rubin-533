@@ -89,9 +89,9 @@ app.layout = html.Div([
                            'width' : '286px'}
                 )]),
     html.Div([
-        html.H2("Alpha:", style={'textAlign':'center', 'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold'}),
+        html.H2("Beta:", style={'textAlign':'center', 'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold'}),
         html.H2(id="alpha", style={'display': 'inline-block','font-family': 'Arial Rounded MT Bold', 'margin-left': '13px'}),
-        html.H2("Beta:", style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : "20px"}),
+        html.H2("Alpha:", style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : "20px"}),
         html.H2(id='beta', style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : '13px'})
     ]),
     dcc.Graph(id="ab-plot"),
@@ -172,7 +172,7 @@ def query_refinitiv(n_clicks, benchmark_id, asset_id, start_date_id, end_date_id
         },
         inplace=True
     )
-    divs.dropna(inplace=True)
+    #divs.dropna(inplace=True)
     divs['Date'] = pd.to_datetime(divs['Date']).dt.date
     divs = divs[(divs.Date.notnull()) & (divs.div_amt > 0)]
 
