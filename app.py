@@ -257,23 +257,21 @@ def calculate_returns(history_tbl):
 def render_ab_plot(returns, plot_start, plot_end, benchmark_id, history, asset_id, start_date, end_date):
 
     dates = [i['Date'] for i in history]
-    print(dates.index(plot_start))
-
     try:
         end_ind = dates.index(plot_end)
     except:
         try:
-            end_ind = dates.index(plot_end[0:-1] + str(int(plot_end[-1]) - 1))
+            end_ind = dates.index(plot_end[0:-1] + str(int(plot_end[-1]) - 3))
         except:
-            end_ind = dates.index(plot_end[0:-1] + str(int(plot_end[-1]) - 2))
+            end_ind = dates.index(plot_end[0:-1] + str(int(plot_end[-1]) + 1))
 
     try:
         start_ind = dates.index(plot_start)
     except:
         try:
-            start_ind = dates.index(plot_start[0:-1] + str(int(plot_start[-1]) + 1))
+            start_ind = dates.index(plot_start[0:-1] + str(int(plot_start[-1]) + 3))
         except:
-            start_ind = dates.index(plot_start[0:-1] + str(int(plot_start[-1]) + 2))
+            start_ind = dates.index(plot_start[0:-1] + str(int(plot_start[-1]) - 1))
 
     plotrets = returns[start_ind:end_ind+1]
     return(
