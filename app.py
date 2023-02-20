@@ -11,6 +11,7 @@ ek.set_app_key(os.getenv('EIKON_API'))
 #dt_prc_div_splt = pd.read_csv('unadjusted_price_history.csv')
 
 app = Dash(__name__)
+server = app.server
 app.layout = html.Div([
     html.Div([
         html.H2('Benchmark:',
