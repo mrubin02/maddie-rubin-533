@@ -106,6 +106,13 @@ app.layout = dbc.Container([
     dbc.Row([dbc.Col(html.Img(src='assets/janeane.jpg', width = '300', height = '400')), dbc.Col(controls, md = 4, style = {'text-align' : 'center'}),
              dbc.Col(html.Img(src='assets/janeane2.jpg', width = '300', height = '400'))], align = "center", justify = 'center', style = {'text-align':'center'}),
     html.Br(),
+
+    dbc.Row(html.Center("REACTIVE GRAPH", style={'font-family': 'Arial Rounded MT Bold',
+                                                 'display': 'inline-block', "font-size": "30px"}), justify="center"),
+    html.Br(),
+    dbc.Row(html.Img(src='assets/graph.png')),
+    html.Br(),
+
     dbc.Row(html.Center("BLOTTER", style={'font-family': 'Arial Rounded MT Bold',
             'display' : 'inline-block', "font-size" : "30px"}), justify = "center"),
 
@@ -113,7 +120,7 @@ app.layout = dbc.Container([
     dash_table.DataTable(id = 'blotter', page_action='none',
         style_table={'height': '300px', 'overflowY': 'auto'}),
 
-    html.Br()
+    html.Br(),
 ])
 
 ek.set_app_key(os.getenv('EIKON_API'))
@@ -140,11 +147,11 @@ def next_n_biz_day(n, in_date):
     Output('blotter', "data"),
     Input("run-query", "n_clicks"),
     [State('date-id', 'start_date'), State('date-id', 'end_date'), State('alpha1-id', 'value'), State('n1-id', 'value'),
-     State("alpha2-id", 'value'), State('n2-id', 'value')],
+     State("alpha2-id", 'value'), State('n2-id', 'value'), State('benchmark-id', 'value')],
 )
-def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
+def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2, asset):
     ivv_prc, ivv_prc_err = ek.get_data(
-        instruments = ["IVV"],
+        instruments = [asset],
         fields = [
             'TR.OPENPRICE(Adjusted=0)',
             'TR.HIGHPRICE(Adjusted=0)',
@@ -185,7 +192,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
     submitted_entry_orders = pd.DataFrame({
         "trade_id": range(1, ivv_prc.shape[0]),
         "date": list(pd.to_datetime(ivv_prc["Date"].iloc[1:]).dt.date),
-        "asset": "IVV",
+        "asset": asset,
         "trip": 'ENTER',
         "action": "BUY",
         "type": "LMT",
@@ -245,7 +252,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
                 pd.DataFrame({
                     "trade_id": ivv_prc.shape[0],
                     "date": pd.to_datetime(next_business_day).date(),
-                    "asset": "IVV",
+                    "asset": asset,
                     "trip": 'ENTER',
                     "action": "BUY",
                     "type": "LMT",
@@ -261,7 +268,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
         live_entry_orders = pd.DataFrame({
             "trade_id": ivv_prc.shape[0],
             "date": pd.to_datetime(next_business_day).date(),
-            "asset": "IVV",
+            "asset": asset,
             "trip": 'ENTER',
             "action": "BUY",
             "type": "LMT",
@@ -292,7 +299,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
     cancelled_dict =  {
         "trade_id" : [],
         "date": [],
-        "asset": "IVV",
+        "asset": asset,
         "trip": 'EXIT',
         "action": "SELL",
         "type": "LMT",
@@ -303,7 +310,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
     filled_dict = {
         "trade_id": [],
         "date": [],
-        "asset": "IVV",
+        "asset": asset,
         "trip": 'EXIT',
         "action": "SELL",
         "type": "LMT",
@@ -314,7 +321,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
     live_dict = {
         "trade_id": [],
         "date": [],
-        "asset": "IVV",
+        "asset": asset,
         "trip": 'EXIT',
         "action": "SELL",
         "type": "LMT",
@@ -325,7 +332,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
     mkt_dict = {
         "trade_id": [],
         "date": [],
-        "asset": "IVV",
+        "asset": asset,
         "trip": 'EXIT',
         "action": "SELL",
         "type": "MKT",
@@ -358,7 +365,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2):
                 cancelled_dict['price'] += [k['price']]
                 mkt_dict['trade_id'] += [k['trade_id']]
                 mkt_dict['date'] += [datetime.strptime(str(dates[len(dates)-1])[0:10], "%Y-%m-%d").date()]
-                mkt_dict['price'] += [prices[-1]]
+                mkt_dict['price'] += [ivv_prc[ivv_prc['Date'] == dates[len(dates)-1]]['Close Price'].to_numpy()[0]]
 
     mkt_filled_dict = mkt_dict.copy()
     mkt_filled_dict['status'] = 'FILLED'
