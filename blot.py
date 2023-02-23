@@ -347,7 +347,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2, 
         for j in dates:
             for i in ivv_prc['Date']:
                 if i == j:
-                    if i == dates[0]:
+                    if j == dates[0]:
                         prices += [ivv_prc[ivv_prc['Date'] == i]['Close Price'].to_numpy()[0]]
                     else:
                         prices += [ivv_prc[ivv_prc['Date'] == i]['High Price'].to_numpy()[0]]
