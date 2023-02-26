@@ -399,7 +399,7 @@ def query_refinitiv(n_clicks, start_date, end_date, alpha_1, n_1, alpha_2, n_2, 
             submitted_mkt_exit_orders,
             filled_mkt_exit_orders
         ]
-    ).sort_values(["date", 'trade_id'])
+    ).sort_values(["trade_id", 'trip', 'date'])
 
     print(blotter)
     return blotter.to_dict('records')
