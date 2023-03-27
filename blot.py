@@ -16,7 +16,7 @@ import base64
 #####################################################
 app = Dash(__name__)
 server = app.server
-app = Dash(external_stylesheets=[dbc.themes.MORPH])
+app = Dash(external_stylesheets=[dbc.themes.COSMO])
 
 
 controls = dbc.Card(
