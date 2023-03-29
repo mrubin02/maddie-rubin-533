@@ -36,8 +36,6 @@ def ledger(blotter):
     entry_prices = np.array(enter['price'])
     exit_prices = np.array(exit['price'])
 
-    print(entry_prices)
-
     returns = np.divide(np.log(np.divide(exit_prices, entry_prices)), ledger_dict['n'])
     ledger_dict['rtn'] = returns
     ledger = pd.DataFrame(ledger_dict)
