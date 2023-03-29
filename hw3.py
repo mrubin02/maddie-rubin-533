@@ -3,6 +3,7 @@ import numpy as np
 from datetime import datetime
 from datetime import date, timedelta
 import math as m
+import time
 
 blotter = pd.read_csv("blotter.csv")
 def ledger(blotter):
@@ -43,6 +44,7 @@ def ledger(blotter):
     ledger.loc[ledger_dict['success'] == 3, ['dt_exit', 'n', 'rtn', 'success']]  = ['', '', '', '']
     print(ledger)
     ledger.to_csv('ledger.csv', index=False)
+    return ledger
 
 ledger(blotter)
 
