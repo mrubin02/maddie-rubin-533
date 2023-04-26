@@ -6,7 +6,7 @@ from datetime import datetime
 import plotly.express as px
 import os
 
-ek.set_app_key(os.getenv('EIKON_API'))
+ref
 
 #dt_prc_div_splt = pd.read_csv('unadjusted_price_history.csv')
 
