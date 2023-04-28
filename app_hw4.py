@@ -6,7 +6,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime
 from datetime import date, timedelta
-import plotly.express as px
 import dash_bootstrap_components as dbc
 import os
 import base64
@@ -126,7 +125,7 @@ controls3 = dbc.Card(
                                 dbc.Input(
                                     id='lookback',
                                     type='text',
-                                    value="30"
+                                    value="26"
                                 )
                             )
                         ])
@@ -195,12 +194,39 @@ app.layout = dbc.Container([
 
     html.Br(),
 
-    dbc.Row(html.Center("Predicted Success", style={'font-family': 'Arial Rounded MT Bold',
+    dbc.Row(html.Center("PREDICTED SUCCESS", style={'font-family': 'Arial Rounded MT Bold',
             'display' : 'inline-block', "font-size" : "30px"}), justify = "center"),
 
     html.Br(),
     dash_table.DataTable(id = 'ledger2', page_action='none',
         style_table={'height': '300px', 'overflowY': 'auto'}),
+
+    html.Br(),
+
+    dbc.Row(html.Center("RETURNS TABLE", style={'font-family': 'Arial Rounded MT Bold',
+            'display' : 'inline-block', "font-size" : "30px"}), justify = "center"),
+    html.Br(),
+    dash_table.DataTable(id = 'ledger3', page_action='none',
+        style_table={'height': '300px', 'overflowY': 'auto'}),
+
+    html.Br(),
+
+
+
+    dbc.Row(html.Center("ALPHA BETA PLOT", style={'font-family': 'Arial Rounded MT Bold',
+            'display' : 'inline-block', "font-size" : "30px"}), justify = "center"),
+
+    html.Center([
+        html.H2("Beta:", style={'textAlign':'center', 'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold'}),
+        html.H2(id="alpha", style={'display': 'inline-block','font-family': 'Arial Rounded MT Bold', 'margin-left': '13px'}),
+        html.H2("Alpha:", style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : "20px"}),
+        html.H2(id='beta', style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : '13px'})
+    ]),
+    html.Br(),
+
+    dcc.Graph(id="ab-plot"),
+
+    html.Br(),
 
     dbc.Row(html.Center("REACTIVE GRAPH", style={'font-family': 'Arial Rounded MT Bold',
                                                  'display': 'inline-block', "font-size": "30px"}), justify="center"),
@@ -233,27 +259,97 @@ def next_n_biz_day(n, in_date):
     [State('benchmark-id', 'value'), State('date-id', 'start_date'), State('date-id', 'end_date')],
     prevent_initial_call=True
 )
-def query_refinitiv(n_clicks, asset, start_date, end_date):
-    ivv_prc, ivv_prc_err = ek.get_data(
-        instruments = [asset],
-        fields = [
+def query_refinitiv(n_clicks, asset, start_date_id, end_date_id):
+    prices, prc_err = ek.get_data(
+        instruments=asset,
+        fields=[
             'TR.OPENPRICE(Adjusted=0)',
             'TR.HIGHPRICE(Adjusted=0)',
             'TR.LOWPRICE(Adjusted=0)',
             'TR.CLOSEPRICE(Adjusted=0)',
             'TR.PriceCloseDate'
         ],
-        parameters = {
-            'SDate': start_date,
-            'EDate': end_date,
+        parameters={
+            'SDate': start_date_id,
+            'EDate': end_date_id,
             'Frq': 'D'
         }
     )
 
-    ivv_prc['Date'] = pd.to_datetime(ivv_prc['Date']).dt.date
-    ivv_prc.drop(columns='Instrument', inplace=True)
+    divs, div_err = ek.get_data(
+        instruments=asset,
+        fields=[
+            'TR.DivExDate',
+            'TR.DivUnadjustedGross',
+            'TR.DivType',
+            'TR.DivPaymentType'
+        ],
+        parameters={
+            'SDate': start_date_id,
+            'EDate': end_date_id,
+            'Frq': 'D'
+        }
+    )
 
-    return ivv_prc.to_dict('records')
+    splits, splits_err = ek.get_data(
+        instruments=asset,
+        fields=['TR.CAEffectiveDate', 'TR.CAAdjustmentFactor'],
+        parameters={
+            "CAEventType": "SSP",
+            'SDate': start_date_id,
+            'EDate': end_date_id,
+            'Frq': 'D'
+        }
+    )
+
+    prices.dropna(inplace=True)
+    prices['Date'] = pd.to_datetime(prices['Date']).dt.date
+
+    divs.rename(
+        columns={
+            'Dividend Ex Date': 'Date',
+            'Gross Dividend Amount': 'div_amt',
+            'Dividend Type': 'div_type',
+            'Dividend Payment Type': 'pay_type'
+        },
+        inplace=True
+    )
+    # divs.dropna(inplace=True)
+    divs['Date'] = pd.to_datetime(divs['Date']).dt.date
+    divs = divs[(divs.Date.notnull()) & (divs.div_amt > 0)]
+
+    divs = divs.groupby(['Instrument', 'Date'], as_index=False).agg({
+        'div_amt': 'sum',
+        'div_type': lambda x: ", ".join(x),
+        'pay_type': lambda x: ", ".join(x)
+    })
+
+    splits.rename(
+        columns={
+            'Capital Change Effective Date': 'Date',
+            'Adjustment Factor': 'split_rto'
+        },
+        inplace=True
+    )
+    splits.dropna(inplace=True)
+    splits['Date'] = pd.to_datetime(splits['Date']).dt.date
+
+    unadjusted_price_history = pd.merge(
+        prices, divs[['Instrument', 'Date', 'div_amt']],
+        how='outer',
+        on=['Date', 'Instrument']
+    )
+    unadjusted_price_history['div_amt'].fillna(0, inplace=True)
+
+    unadjusted_price_history = pd.merge(
+        unadjusted_price_history, splits,
+        how='outer',
+        on=['Date', 'Instrument']
+    )
+    unadjusted_price_history['split_rto'].fillna(1, inplace=True)
+    unadjusted_price_history.drop_duplicates(inplace=True)
+
+    return unadjusted_price_history.to_dict('records')
 
 @app.callback(
     Output('blotter', "data"),
@@ -520,7 +616,7 @@ def perceptron(ledg, n_clicks, lookback):
     predictions = {'date' : [], 'prediction': []}
     # Make a training set and let's try it out on two upcoming trades.
     # Choose a subset of data:
-    for i,n in enumerate(ledg[:-30]):
+    for i,n in enumerate(ledg[:-int(lookback) - 3]):
         X = features.iloc[int(i):int(i)+lookback]
         x_test = features.iloc[[i+lookback]]
         y = np.asarray(ledger['success'][i:i+lookback], dtype="|S6")
@@ -539,12 +635,80 @@ def perceptron(ledg, n_clicks, lookback):
         ppn.fit(X_train, y)
 
         y_pred = ppn.predict(X_test)[0]
-        predictions['date'] += [str(data['Date'][i+lookback])]
+        predictions['date'] += [datetime.strptime(data['Date'][i+lookback], "%m/%d/%y").strftime("%Y-%m-%d")]
         predictions['prediction'] += [int(y_pred)]
-
     predictions = pd.DataFrame(predictions)
+    predictions = ledger.merge(predictions, how = 'inner', left_on='dt_enter', right_on = 'date')
+    predictions = predictions[['trade_id', 'asset', 'dt_enter', 'rtn', 'success', 'prediction']]
+    same = np.where(np.equal(predictions['prediction'],predictions['success']))
     return predictions.to_dict('records')
 
+import plotly.express as px
+@app.callback(
+    [Output('ledger3', 'data'), Output('ab-plot', 'figure')],
+    [Input('ledger2', 'data'), Input('history-tbl', 'data')],
+    prevent_initial_call=True
+)
+def ab_plot(ledger2, unadjusted_price_history):
+    ledger2= pd.DataFrame(ledger2)
+
+    dt_prc_div_splt = pd.DataFrame(unadjusted_price_history)
+
+    # Define what columns contain the Identifier, date, price, div, & split info
+    ins_col = 'Instrument'
+    dte_col = 'Date'
+    prc_col = 'Close Price'
+    div_col = 'div_amt'
+    spt_col = 'split_rto'
+
+    dt_prc_div_splt[dte_col] = pd.to_datetime(dt_prc_div_splt[dte_col])
+    dt_prc_div_splt = dt_prc_div_splt.sort_values([ins_col, dte_col])[
+        [ins_col, dte_col, prc_col, div_col, spt_col]].groupby(ins_col)
+    numerator = dt_prc_div_splt[[dte_col, ins_col, prc_col, div_col]].tail(-1)
+    denominator = dt_prc_div_splt[[prc_col, spt_col]].head(-1)
+
+    act_rtns = pd.DataFrame({
+        'Date': numerator[dte_col].reset_index(drop=True),
+        'Instrument': numerator[ins_col].reset_index(drop=True),
+        'ivv_rtn_w_perceptron': np.log(
+            (numerator[prc_col] + numerator[div_col]).reset_index(drop=True) / (
+                    denominator[prc_col] * denominator[spt_col]
+            ).reset_index(drop=True)
+        )
+    })
+    print(act_rtns)
+    start_date = ledger2['dt_enter'][1]
+    end_date = ledger2['dt_enter'].to_numpy()[-1]
+    start_index = act_rtns[act_rtns['Date']==start_date].index.values[0]
+    end_index = act_rtns[act_rtns['Date']==end_date].index.values[0]
+    act_rtns = act_rtns.iloc[start_index:end_index+1]
+    act_rtns = act_rtns.reset_index()
+    ledger2 = ledger2[1:].reset_index()
+    pred_returns = act_rtns[ledger2['prediction']==1]
+    pred_returns['Date'] = pred_returns['Date'].dt.strftime("%Y-%m-%d")
+    ledger2 = ledger2[ledger2['rtn'] != '']
+    ledger3 = ledger2.merge(pred_returns, how='inner', left_on = 'dt_enter', right_on = 'Date')
+    ledger3['rtn'] = np.array(ledger3['rtn'], dtype = float)
+    ledger3['ivv_rtn_w_perceptron'] = np.array(ledger3['ivv_rtn_w_perceptron'], dtype = float)
+    ledger3 = ledger3[['Date', 'ivv_rtn_w_perceptron', 'rtn']]
+    plot = px.scatter(ledger3[['ivv_rtn_w_perceptron', 'rtn']], y='ivv_rtn_w_perceptron', x='rtn', trendline='ols')
+    return ledger3.to_dict('records'), plot
+
+@app.callback(
+    Output('alpha', 'children'),
+    Output('beta', 'children'),
+    Input('ab-plot', 'figure'),
+    prevent_initial_call = True
+)
+def calc_alpha_beta(ab_plot):
+    line = ab_plot['data'][1]['hovertemplate']
+    index1 = line.find(" = ") + 2
+    index2 = line.find(' * ')
+    index3 = line.find(" + ") + 2
+    index4 = line.find("<br>R")
+    alpha = line[index1:index2]
+    beta = line[index3:index4]
+    return(alpha, beta)
 
 if __name__ == '__main__':
     app.run_server(debug=True)
