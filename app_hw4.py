@@ -138,6 +138,32 @@ controls3 = dbc.Card(
     body=True
 )
 
+controls4 = dbc.Card(
+    [
+        dbc.Row(html.Button('Set b (Hoeffding Lower Bound)', id='b_bt', n_clicks=0)),
+        html.Br(),
+        dbc.Row([
+            dbc.Table(
+                    html.Tbody([
+                        html.Tr([
+                            html.Td(html.Th("b:")),
+                            html.Td(
+                                dbc.Input(
+                                    id='b',
+                                    type='text',
+                                    value="-0.3"
+                                )
+                            )
+                        ])
+                    ]),
+                bordered=True
+            )
+        ]
+        )
+    ],
+    body=True
+)
+
 app.layout = dbc.Container([
     html.Br(),
     dbc.Row([html.Center("JANEANE", style={'font-family': 'Arial Rounded MT Bold',
@@ -217,9 +243,9 @@ app.layout = dbc.Container([
             'display' : 'inline-block', "font-size" : "30px"}), justify = "center"),
 
     html.Center([
-        html.H2("Beta:", style={'textAlign':'center', 'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold'}),
+        html.H2("BETA:", style={'textAlign':'center', 'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold'}),
         html.H2(id="alpha", style={'display': 'inline-block','font-family': 'Arial Rounded MT Bold', 'margin-left': '13px'}),
-        html.H2("Alpha:", style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : "20px"}),
+        html.H2("ALPHA:", style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : "20px"}),
         html.H2(id='beta', style={'display': 'inline-block', 'font-family': 'Arial Rounded MT Bold', 'margin-left' : '13px'})
     ]),
     html.Br(),
@@ -227,11 +253,29 @@ app.layout = dbc.Container([
     dcc.Graph(id="ab-plot"),
 
     html.Br(),
+    html.Br(),
+
+    dbc.Row([dbc.Col(),
+             dbc.Col(controls4, md=4, style={'text-align': 'center'}),
+             dbc.Col()], align="center", justify='center',
+            style={'text-align': 'center'}),
+
+    html.Br(),
+
+    html.Center([html.H2("HOEFFDING:", style={'font-family': 'Arial Rounded MT Bold',
+            'display' : 'inline-block', "font-size" : "30px"}),
+               html.H2(id="fin", style={'display': 'inline-block','font-family': 'Arial Rounded MT Bold', 'margin-left': '13px'})]),
+
+    html.Br(),
 
     dbc.Row(html.Center("REACTIVE GRAPH", style={'font-family': 'Arial Rounded MT Bold',
                                                  'display': 'inline-block', "font-size": "30px"}), justify="center"),
     html.Br(),
-    dbc.Row(html.Img(src='assets/graph.png'))
+
+    dbc.Row(html.Img(src='assets/graph.png')),
+
+    html.Br()
+
 ])
 
 ek.set_app_key(os.getenv('EIKON_API'))
@@ -685,6 +729,8 @@ def ab_plot(ledger2, unadjusted_price_history):
     act_rtns = act_rtns.reset_index()
     ledger2 = ledger2[1:].reset_index()
     pred_returns = act_rtns[ledger2['prediction']==1]
+    Er = np.matmul(ledger2['prediction'], act_rtns['ivv_rtn_w_perceptron'])
+    print(Er)
     pred_returns['Date'] = pred_returns['Date'].dt.strftime("%Y-%m-%d")
     ledger2 = ledger2[ledger2['rtn'] != '']
     ledger3 = ledger2.merge(pred_returns, how='inner', left_on = 'dt_enter', right_on = 'Date')
@@ -709,6 +755,39 @@ def calc_alpha_beta(ab_plot):
     alpha = line[index1:index2]
     beta = line[index3:index4]
     return(alpha, beta)
+
+@app.callback(
+    Output('fin', 'children'),
+    [Input('ledger3', 'data'), Input('b_bt', 'n_clicks')],
+    [State('b', 'value'), State('alpha2-id', 'value')],
+    prevent_initial_call = True
+)
+def hoeffding_test(returns, n_clicks, b, a):
+
+    returns = pd.DataFrame(returns)
+    original_sample = returns['rtn'].values
+    mod_sample = returns['ivv_rtn_w_perceptron'].values
+    # make sure geometric
+    original_mean = np.power(np.prod(original_sample), 1/len(original_sample))
+    mod_mean = np.power(np.prod(mod_sample), 1 / len(mod_sample))
+    diff_means = original_mean - mod_mean
+
+    # hoeffding, add in divide (b-a)^2
+
+    n = len(original_sample)
+    epsilon = abs(diff_means)
+    prob = 2 * np.exp(-2 * n * epsilon ** 2)
+
+    fin = prob / ((float(b) - float(a)) ** 2)
+
+    # Compare probability to threshold
+    # use threshold as historical low maybe
+    # what else should this return?
+    # are we overfitting or not? that is what hoeffdings tells us
+
+    return str(fin) + "%"
+
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
