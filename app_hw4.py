@@ -125,7 +125,7 @@ controls3 = dbc.Card(
                                 dbc.Input(
                                     id='lookback',
                                     type='text',
-                                    value="26"
+                                    value="60"
                                 )
                             )
                         ])
@@ -689,7 +689,7 @@ def perceptron(ledg, n_clicks, lookback):
 
 import plotly.express as px
 @app.callback(
-    [Output('ledger3', 'data'), Output('ab-plot', 'figure')],
+    Output('ledger3', 'data'),
     [Input('ledger2', 'data'), Input('history-tbl', 'data')],
     prevent_initial_call=True
 )
@@ -737,8 +737,16 @@ def ab_plot(ledger2, unadjusted_price_history):
     ledger3['rtn'] = np.array(ledger3['rtn'], dtype = float)
     ledger3['ivv_rtn_w_perceptron'] = np.array(ledger3['ivv_rtn_w_perceptron'], dtype = float)
     ledger3 = ledger3[['Date', 'ivv_rtn_w_perceptron', 'rtn']]
+    return ledger3.to_dict('records')
+
+@app.callback(
+    Output('ab-plot', 'figure'),
+    Input('ledger3', 'data'),
+    prevent_initial_call=True)
+def ab(ledger3):
+    ledger3 = pd.DataFrame(ledger3)
     plot = px.scatter(ledger3[['ivv_rtn_w_perceptron', 'rtn']], y='ivv_rtn_w_perceptron', x='rtn', trendline='ols')
-    return ledger3.to_dict('records'), plot
+    return plot
 
 @app.callback(
     Output('alpha', 'children'),
@@ -768,6 +776,10 @@ def hoeffding_test(returns, n_clicks, b, a):
     original_sample = returns['rtn'].values
     mod_sample = returns['ivv_rtn_w_perceptron'].values
     # make sure geometric
+    print(np.prod(original_sample))
+    print(1/len(original_sample))
+    print(np.prod(mod_sample))
+    print(1/len(mod_sample))
     original_mean = np.power(np.prod(original_sample), 1/len(original_sample))
     mod_mean = np.power(np.prod(mod_sample), 1 / len(mod_sample))
     diff_means = original_mean - mod_mean
@@ -777,7 +789,6 @@ def hoeffding_test(returns, n_clicks, b, a):
     n = len(original_sample)
     epsilon = abs(diff_means)
     prob = 2 * np.exp(-2 * n * epsilon ** 2)
-
     fin = prob / ((float(b) - float(a)) ** 2)
 
     # Compare probability to threshold
